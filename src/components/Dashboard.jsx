@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { FaTrophy, FaQuestionCircle, FaLock, FaSpinner, FaSignOutAlt } from 'react-icons/fa';
+import { FaTrophy, FaQuestionCircle, FaLock, FaSpinner, FaSignOutAlt, FaPlay } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import LoadingSpinner from './Loading';
+import QuizPage from './Quiz';
+import Notification from './Notification';
 import axios from 'axios';
+
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -15,10 +19,13 @@ const DashboardPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  
   const quizPacks = [
-    { questions: 20, color: 'bg-green-500' },
-    { questions: 40, color: 'bg-yellow-500' },
-    { questions: 60, color: 'bg-red-500' }
+    { count: 20, color: 'bg-green-500', title: 'Sơ Cấp' },
+    { count: 40, color: 'bg-yellow-500', title: 'Trung Cấp' },
+    { count: 60, color: 'bg-red-500', title: 'Cao Cấp' }
   ];
 
   const getUserInfo = useCallback(async () => {
@@ -42,6 +49,10 @@ const DashboardPage = () => {
         setFullname(user.fullname);
         setLastScore(last_score);
         setIsLoading(false);
+        if(user.is_active === 0){
+          setNotificationMessage('Tài khoản của bạn chưa được Kích hoạt, vui lòng liên hệ admin để kích hoạt tài khoản');
+          setShowNotification(true);
+        }
       }
     } catch (error) {
       console.error('Error fetching user info:', error);
@@ -54,19 +65,44 @@ const DashboardPage = () => {
     getUserInfo();
   }, []);
 
-  const handlePasswordChange = (e) => {
+  const handlePasswordChange = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       alert('Mật khẩu không khớp');
       return;
     }
-    // Implement password change logic here
-    console.log('Old Password:', oldPassword);
-    console.log('New Password:', newPassword);
+
+    if(newPassword.length < 8){
+      alert('Mật khẩu phải có ít nhất 8 ký tự');
+      return;
+    }
+    
+    const API_URL = `${import.meta.env.VITE_API_URL}/user/update-password`;
+    const response = await axios.post(API_URL, {
+      old_password: oldPassword,
+      new_password: newPassword
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (response.status === 200) {
+      alert('Thành Công');
+      
+    } else {
+      alert('Đổi mật khẩu thất bại');
+    }
+
     setShowPasswordModal(false);
     setOldPassword('');
     setNewPassword('');
     setConfirmPassword('');
+
+  };
+
+  const handleStartQuiz = (count) => {
+    navigate(`/quiz?count=${count}`);
   };
 
   const handleLogout = () => {
@@ -78,7 +114,11 @@ const DashboardPage = () => {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen"><FaSpinner className="animate-spin text-white text-4xl" /></div>;
+    return <LoadingSpinner />;
+  }
+
+  if(showNotification){
+    return <Notification message={notificationMessage} onConfirm={() => setShowNotification(false)} />;
   }
 
   return (
@@ -118,9 +158,11 @@ const DashboardPage = () => {
             <div key={index} className={`${pack.color} p-6 rounded-lg shadow-md transition duration-300 transform hover:scale-105`}>
               <h3 className="text-xl font-bold mb-2 text-gray-900 flex items-center">
                 <FaQuestionCircle className="mr-2" />
-                {pack.questions} Câu Hỏi
+                Gói {pack.title} ({pack.count} Câu Hỏi)
               </h3>
-              <button className="mt-4 bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition duration-300">
+              <button className="mt-4 bg-gray-900 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition duration-300"
+                onClick={() => handleStartQuiz(pack.count)}
+              >
                 Bắt Đầu
               </button>
             </div>

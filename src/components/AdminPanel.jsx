@@ -18,7 +18,7 @@ const AdminPanel = () => {
     const [token, setToken] = useState(localStorage.getItem('token'));
     const [users, setUsers] = useState([]);
     const [questions, setQuestions] = useState([]);
-    
+
     const [stats, setStats] = useState({ totalUsers: 0, totalQuestions: 0, completionRate: 0 });
     const [filteredUsers, setFilteredUsers] = useState(null);
     const [filteredQuestions, setFilteredQuestions] = useState(null);
@@ -71,7 +71,6 @@ const AdminPanel = () => {
         if (questions) {
             questions.forEach(q => {
                 q.options = [q.option_a, q.option_b, q.option_c, q.option_d];
-                console.log('get question:', q)
                 try {
                     q.correctAnswer = q.options[indexAnswer.indexOf(q.correct_answer)];
                 } catch (error) {
@@ -80,7 +79,7 @@ const AdminPanel = () => {
             });
             setQuestions(questions);
         }
-        setStats({ ...stats, totalQuestions: questions.length });
+        setStats(prevStats => ({ ...prevStats, totalQuestions: questions.length }));
     };
 
     const getUsers = async () => {
@@ -90,7 +89,8 @@ const AdminPanel = () => {
             }
         });
         const { users } = await response.data;
-        setUsers(users);
+        const usersSorted = users.sort((a, b) => b.fullname.localeCompare(a.fullname) && b.email.localeCompare(a.email));
+        setUsers(usersSorted);
         setFilteredUsers(null);
         setStats(prevStats => ({ ...prevStats, totalUsers: users.length }));
         setLoading(false);
@@ -138,13 +138,11 @@ const AdminPanel = () => {
     }
 
     const buildQuestionData = (question) => {
-        console.log('preprocess question:', question)
         const indexCorrect = question.options.indexOf(question.correctAnswer);
-        const charCorrectAnswer = String.fromCharCode(65 + indexCorrect)
-        if(indexAnswer.indexOf(charCorrectAnswer) === -1){
+        let charCorrectAnswer = String.fromCharCode(65 + indexCorrect)
+        if (indexAnswer.indexOf(charCorrectAnswer) === -1) {
             charCorrectAnswer = 'A'
         }
-        console.log('preprocess question:', question, "correctAnswer:", charCorrectAnswer)
         return {
             text: question.text,
             option_a: question.options[0],
@@ -157,11 +155,31 @@ const AdminPanel = () => {
     }
     const handleBeforeAddQuestion = () => {
         setNewQuestion({ text: "", options: ["", "", "", ""], correctAnswer: "" });
-        setEditingQuestion(null);
+        setIsAddModalOpen(true);
     }
     const handleQuestionAction = async (action, questionId) => {
         if (action === "add") {
-            setIsAddModalOpen(true);
+            if (newQuestion.text === "" || newQuestion.options.some(option => option === "") || newQuestion.correctAnswer === "") {
+                showNotification("Please fill in all fields", "error");
+                return;
+            }
+
+            const data = buildQuestionData(newQuestion);
+            try {
+                const response = await axios.post(`${import.meta.env.VITE_API_URL}/admin/questions`, data, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (response.status === 201) {
+                    showNotification(`Question added successfully`);
+                    await getQuestions();
+                }
+            } catch (error) {
+                showNotification(`Failed to add question: ${error.message}`, 'error');
+            } finally {
+                setIsAddModalOpen(false);
+            }
         } else if (action === "edit") {
             setEditingQuestion(questions.find(q => q.id === questionId));
             setIsEditModalOpen(true);
@@ -399,14 +417,15 @@ const AdminPanel = () => {
                                     <li key={user.id}>
                                         <div className="px-4 py-4 sm:px-6">
                                             <div className="flex items-center justify-between">
-                                                <div className="flex items-center">
+                                                <div className="flex items-center flex-grow">
                                                     <FaUserCircle className="h-10 w-10 text-gray-400" />
-                                                    <div className="ml-4">
+                                                    <div className="ml-4 flex-grow">
                                                         <div className="text-sm font-medium text-gray-900">{user.fullname}</div>
                                                         <div className="text-sm text-gray-500">{user.email}</div>
                                                     </div>
+                                                    <div className="text-sm text-gray-500 ml-4 flex-grow text-center">{user.is_admin ? 'Admin' : 'User'}</div>
                                                 </div>
-                                                <div className="flex space-x-2">
+                                                <div className="flex space-x-2 ml-4">
                                                     <button
                                                         onClick={() => handleUserAction(user.is_active ? "deactivate" : "activate", user.id)}
                                                         className={`inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md ${user.is_active ? "text-yellow-700 bg-yellow-100 hover:bg-yellow-200" : "text-green-700 bg-green-100 hover:bg-green-200"} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
