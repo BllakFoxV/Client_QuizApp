@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { FaUserCircle, FaQuestionCircle, FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,11 @@ import { Dialog, Transition } from '@headlessui/react'
 import { Fragment } from 'react'
 
 ChartJS.register(ArcElement, Tooltip, Legend);
+
+// Lazy load components
+const UserManagement = lazy(() => import('./admin/UserManagement'));
+const QuestionManagement = lazy(() => import('./admin/QuestionManagement'));
+
 
 const AdminPanel = () => {
     const [isLoading, setLoading] = useState(false);
@@ -45,7 +50,7 @@ const AdminPanel = () => {
     };
 
     const checkAdmin = async () => {
-        const API_URL = `${import.meta.env.VITE_API_URL}/admin/auth`;
+        const API_URL = `/api/admin/auth`;
         const response = await axios.get(API_URL, {
             headers: {
                 'Content-Type': 'application/json',
@@ -62,7 +67,7 @@ const AdminPanel = () => {
     };
 
     const getQuestions = async () => {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/all-questions`, {
+        const response = await axios.get(`/api/admin/all-questions`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -83,7 +88,7 @@ const AdminPanel = () => {
     };
 
     const getUsers = async () => {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/users`, {
+        const response = await axios.get(`/api/admin/users`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -112,7 +117,7 @@ const AdminPanel = () => {
         }
         else if (action === "activate" || action === "deactivate") {
             setLoading(true);
-            const response = await axios.post(`${import.meta.env.VITE_API_URL}/admin/users/set-active`, {
+            const response = await axios.post(`/api/admin/users/set-active`, {
                 is_active: action === "activate",
                 user_id: userId
             }, {
@@ -166,7 +171,7 @@ const AdminPanel = () => {
 
             const data = buildQuestionData(newQuestion);
             try {
-                const response = await axios.post(`${import.meta.env.VITE_API_URL}/admin/questions`, data, {
+                const response = await axios.post(`/api/admin/questions`, data, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -191,7 +196,7 @@ const AdminPanel = () => {
 
             const data = buildQuestionData(question);
             console.log(data);
-            const response = await axios.put(`${import.meta.env.VITE_API_URL}/admin/questions/${question.id}`, data, {
+            const response = await axios.put(`/api/admin/questions/${question.id}`, data, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -212,10 +217,10 @@ const AdminPanel = () => {
         let api, successMessage;
 
         if (type === 'user') {
-            api = `${import.meta.env.VITE_API_URL}/admin/users/${id}`;
+            api = `/api/admin/users/${id}`;
             successMessage = 'Đã xoá người dùng thành công';
         } else if (type === 'question') {
-            api = `${import.meta.env.VITE_API_URL}/admin/questions/${id}`;
+            api = `/api/admin/questions/${id}`;
             successMessage = 'Đã xoá câu hỏi thành công';
         }
 
@@ -238,6 +243,28 @@ const AdminPanel = () => {
         }
         setLoading(false);
         setDeleteModal({ isOpen: false, type: null, id: null });
+    };
+
+    const [displayedUsers, setDisplayedUsers] = useState([]);
+    const [displayedQuestions, setDisplayedQuestions] = useState([]);
+
+    useEffect(() => {
+        setDisplayedUsers(users.slice(0, 20));
+        setDisplayedQuestions(questions.slice(0, 20));
+    }, [users, questions]);
+
+    const loadMoreUsers = () => {
+        setDisplayedUsers(prevUsers => [
+            ...prevUsers,
+            ...users.slice(prevUsers.length, prevUsers.length + 20)
+        ]);
+    };
+
+    const loadMoreQuestions = () => {
+        setDisplayedQuestions(prevQuestions => [
+            ...prevQuestions,
+            ...questions.slice(prevQuestions.length, prevQuestions.length + 20)
+        ]);
     };
 
     if (isLoading) {
@@ -391,134 +418,29 @@ const AdminPanel = () => {
                 )}
 
                 {activeTab === "users" && (
-                    <div className="px-4 py-6 sm:px-0">
-                        <h2 className="text-2xl font-semibold text-gray-800 mb-6">Quản Lý Người Dùng</h2>
-
-                        {/* Add search bar */}
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm theo email hoặc tên..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                onChange={(e) => {
-                                    const searchTerm = e.target.value.toLowerCase();
-                                    const filteredUsers = users.filter(user =>
-                                        user.email.toLowerCase().includes(searchTerm) ||
-                                        user.fullname.toLowerCase().includes(searchTerm)
-                                    );
-                                    setFilteredUsers(filteredUsers);
-                                }}
-                            />
-                        </div>
-
-                        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                            <ul className="divide-y divide-gray-200">
-                                {(filteredUsers || users).map((user) => (
-                                    <li key={user.id}>
-                                        <div className="px-4 py-4 sm:px-6">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center flex-grow">
-                                                    <FaUserCircle className="h-10 w-10 text-gray-400" />
-                                                    <div className="ml-4 flex-grow">
-                                                        <div className="text-sm font-medium text-gray-900">{user.fullname}</div>
-                                                        <div className="text-sm text-gray-500">{user.email}</div>
-                                                    </div>
-                                                    <div className="text-sm text-gray-500 ml-4 flex-grow text-center">{user.is_admin ? 'Admin' : 'User'}</div>
-                                                </div>
-                                                <div className="flex space-x-2 ml-4">
-                                                    <button
-                                                        onClick={() => handleUserAction(user.is_active ? "deactivate" : "activate", user.id)}
-                                                        className={`inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md ${user.is_active ? "text-yellow-700 bg-yellow-100 hover:bg-yellow-200" : "text-green-700 bg-green-100 hover:bg-green-200"} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
-                                                    >
-                                                        {user.is_active ? "Khóa" : "Kích Hoạt"}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleUserAction("delete", user.id)}
-                                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                                    >
-                                                        Xoá
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <UserManagement 
+                            users={displayedUsers}
+                            handleUserAction={handleUserAction}
+                            setFilteredUsers={setFilteredUsers}
+                            loadMoreUsers={loadMoreUsers}
+                            hasMore={displayedUsers.length < users.length}
+                        />
+                    </Suspense>
                 )}
 
                 {activeTab === "questions" && (
-                    <div className="px-4 py-6 sm:px-0">
-                        <h2 className="text-2xl font-semibold text-gray-800 mb-6">Quản Lý Câu Hỏi</h2>
-                        <div className="mb-4">
-                            <button
-                                onClick={() => handleBeforeAddQuestion()}
-                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            >
-                                <FaPlus className="-ml-1 mr-2 h-5 w-5" />
-                                Thêm Câu Hỏi
-                            </button>
-                        </div>
-                        {/* Add search bar for questions */}
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm câu hỏi..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                onChange={(e) => {
-                                    const searchTerm = e.target.value.toLowerCase();
-                                    if (searchTerm === '') {
-                                        setFilteredQuestions(null);
-                                    } else {
-                                        const filtered = questions.filter(question =>
-                                            question.text.toLowerCase().includes(searchTerm)
-                                        );
-                                        setFilteredQuestions(filtered);
-                                    }
-                                }}
-                            />
-                        </div>
-
-                        <div className="bg-white shadow overflow-hidden sm:rounded-md">
-                            <ul className="divide-y divide-gray-200">
-                                {(filteredQuestions || questions || []).map((question) => (
-                                    <li key={question.id}>
-                                        <div className="px-4 py-4 sm:px-6">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <div className="text-sm font-medium text-gray-900">{question.text}</div>
-                                                    <div className="text-sm text-gray-500">
-                                                        <ul className="list-disc list-inside">
-                                                            {question.options.map((option, index) => (
-                                                                <li key={index} className={option === question.correctAnswer ? "font-semibold text-green-500" : ""}>
-                                                                    {option}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                                <div className="flex space-x-2">
-                                                    <button
-                                                        onClick={() => handleQuestionAction("edit", question.id)}
-                                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                                    >
-                                                        <FaEdit className="-ml-0.5 mr-2 h-4 w-4" /> Sửa
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleQuestionAction("delete", question.id)}
-                                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                                    >
-                                                        <FaTrash className="-ml-0.5 mr-2 h-4 w-4" /> Xoá
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <QuestionManagement 
+                            questions={displayedQuestions}
+                            filteredQuestions={filteredQuestions}
+                            handleQuestionAction={handleQuestionAction}
+                            handleBeforeAddQuestion={handleBeforeAddQuestion}
+                            setFilteredQuestions={setFilteredQuestions}
+                            loadMoreQuestions={loadMoreQuestions}
+                            hasMore={displayedQuestions.length < questions.length}
+                        />
+                    </Suspense>
                 )}
             </main>
 

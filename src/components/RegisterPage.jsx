@@ -55,7 +55,7 @@ const RegistrationPage = () => {
         setErrors({ ...errors, fullname: 'Họ và tên không được để trống', email: 'Email không được để trống', password: 'Mật khẩu không được để trống' });
       }
       try {
-        const apiUrl = `${import.meta.env.VITE_API_URL}/auth/register`;
+        const apiUrl = `/api/auth/register`;
         console.log('Attempting to register with URL:', apiUrl);
         
         const response = await axios.post(apiUrl, 

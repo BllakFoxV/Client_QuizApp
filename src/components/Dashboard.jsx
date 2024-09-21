@@ -36,7 +36,7 @@ const DashboardPage = () => {
     }
 
     try {
-      const API_URL = `${import.meta.env.VITE_API_URL}/user/info`;
+      const API_URL = `/api/user/info`;
       const response = await axios.get(API_URL, {
         headers: {
           'Content-Type': 'application/json',
@@ -45,9 +45,12 @@ const DashboardPage = () => {
       });
 
       if (response.status === 200) {
-        const { user, last_score } = response.data;
+        const { user, history } = response.data;
+        if(history.length > 0){
+          setLastScore(history[0].score);
+        }
         setFullname(user.fullname);
-        setLastScore(last_score);
+
         setIsLoading(false);
         if(user.is_active === 0){
           setNotificationMessage('Tài khoản của bạn chưa được Kích hoạt, vui lòng liên hệ admin để kích hoạt tài khoản');
@@ -77,7 +80,7 @@ const DashboardPage = () => {
       return;
     }
     
-    const API_URL = `${import.meta.env.VITE_API_URL}/user/update-password`;
+    const API_URL = `/api/user/update-password`;
     const response = await axios.post(API_URL, {
       old_password: oldPassword,
       new_password: newPassword
